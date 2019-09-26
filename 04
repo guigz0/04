@@ -1,0 +1,62 @@
+#!/bin/bash
+
+postal_code="$1"
+
+find_city ()
+{
+# Get city name with the postal code entered by parsing the cURL result.
+	city=$(curl -s https://fr.mappy.com/plan/$postal_code | sed "s/>/%/g" | tr % "\n" | grep -A 1 locationMainAddress | cut -d "\"" -f3 | cut -d "<" -f1 | tr "\n" "%" | cut -d "%" -f2)
+	if [ "$city" == "" ] ; then
+		echo "La ville correspondant au code postal entrée n'a pas été trouvé. Désolé :/"
+		ret='1'
+	else
+		echo "Prévisions météo à \033[36m$city\033[0m !"
+# Parse the city name in something www.meteofrance.com can read"
+		city=$(echo $city | tr [A-Z] [a-z] | tr "\ '" "-" | tr "àèìòùáéíóúýâêîôûãñõäëïöüÿ" "aeiouaeiouyaeiouanoaeiouy")
+		ret='0'
+	fi
+}
+
+tell_the_sky ()
+{
+# Put in a file named "meteo" the informations about the meteo in the city we chose by parsing the cURL result.
+	curl -s http://www.meteofrance.com/previsions-meteo-france/$city/$postal_code | sed "s/> /%/g" | tr "%" "\n" | grep -A5 "class=\"active\" title" > meteo
+# Get the information about the sky	
+	sky=$(head -n1 < meteo | cut -d "\"" -f4)
+	if [ "$sky" == "" ] ; then
+		echo "Le site www.meteofrance.com ne répertorie pas cette ville / ce code postal."
+		rm meteo
+	else
+		echo "En ce moment le temps est \033[36m$sky\033[0m"
+		echo "Les températures varient entre :\033[36m"
+# Display the information about the temperature
+		tail -2 < meteo | tr ">" "<" | cut -d "<" -f3
+		echo "\033[0mBonne journée :)"
+		rm meteo
+	fi
+}
+
+main ()
+{
+	if [ "$postal_code" == "" ] ; then
+		echo "\033[33m********************************************"
+		echo "* Bienvenue dans mon script qui vous donne *"
+		echo "*   les prévsions météo en temps réel !    *"
+		echo "*                                          *"
+		echo "*     \033[36mVous devez entrer un code postal\033[33m     *"
+		echo "*               \033[36men argument\033[33m                *"
+		echo "*                                          *"
+		echo "*      Pour des raisons de simplicité      *"
+		echo "* ce script ne marche pas avec des villes  *"
+		echo "* qui ont un nom différent entre le site   *"
+		echo "*   fr.mappy.com & www.meteofrance.com     *"
+		echo "********************************************\033[0m"
+	else
+		find_city
+		if [ "$ret" == "0" ] ; then
+			tell_the_sky
+		fi
+	fi
+}
+
+main
